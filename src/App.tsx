@@ -1,14 +1,20 @@
 import { useEffect, useMemo, useState } from "react";
 import {
+  BookOpen,
   Braces,
   ChevronLeft,
   ChevronRight,
-  CircleDot,
+  Disc3,
+  Drum,
   GitBranch,
+  Guitar,
+  Image,
   Pause,
+  Piano,
   Play,
   RotateCcw,
   Route,
+  type LucideIcon,
 } from "lucide-react";
 import { runBacktracking, backtrackingTasks } from "./algorithms/backtracking";
 import { runBellmanFord } from "./algorithms/bellmanFord";
@@ -57,6 +63,57 @@ const modeCopy: Record<
   },
 };
 
+const nodeIcons: Record<string, LucideIcon> = {
+  книга: BookOpen,
+  пластинка: Disc3,
+  постер: Image,
+  гитара: Guitar,
+  барабан: Drum,
+  пианино: Piano,
+};
+
+function getGraphViewBox(nodes: GraphNode[]) {
+  const padding = 9;
+  const minX = Math.min(...nodes.map((node) => node.x)) - padding;
+  const maxX = Math.max(...nodes.map((node) => node.x)) + padding;
+  const minY = Math.min(...nodes.map((node) => node.y)) - padding;
+  const maxY = Math.max(...nodes.map((node) => node.y)) + padding;
+  const width = maxX - minX;
+  const height = maxY - minY;
+  const size = Math.max(width, height);
+  const centerX = (minX + maxX) / 2;
+  const centerY = (minY + maxY) / 2;
+
+  return `${centerX - size / 2} ${centerY - size / 2} ${size} ${size}`;
+}
+
+function getStatusLines({
+  mode,
+  weightedTask,
+  backtrackingTask,
+  step,
+  stepIndex,
+  totalSteps,
+}: {
+  mode: AlgorithmMode;
+  weightedTask: WeightedTask;
+  backtrackingTask: BacktrackingTask;
+  step?: WeightedStep | BacktrackingStep;
+  stepIndex: number;
+  totalSteps: number;
+}) {
+  const task = mode === "backtracking" ? backtrackingTask : weightedTask;
+  const expected = task.expected.slice(0, 2);
+
+  return [
+    `> сценарий: ${task.shortTitle}`,
+    `> шаг ${Math.min(stepIndex + 1, totalSteps)} из ${totalSteps}`,
+    `> ${step?.title ?? "Старт"}`,
+    ...(step?.detail ? [`> ${step.detail}`] : []),
+    ...expected.map((line) => `> вывод: ${line}`),
+  ];
+}
+
 function App() {
   const [mode, setMode] = useState<AlgorithmMode>("dijkstra");
   const [bellmanTaskId, setBellmanTaskId] = useState(bellmanTasks[0].id);
@@ -100,6 +157,14 @@ function App() {
   const steps = mode === "backtracking" ? backtrackingRun?.steps ?? [] : weightedRun?.steps ?? [];
   const currentStep = steps[Math.min(stepIndex, Math.max(steps.length - 1, 0))];
   const progress = steps.length > 1 ? (stepIndex / (steps.length - 1)) * 100 : 0;
+  const statusLines = getStatusLines({
+    mode,
+    weightedTask,
+    backtrackingTask,
+    step: currentStep as WeightedStep | BacktrackingStep | undefined,
+    stepIndex,
+    totalSteps: steps.length,
+  });
 
   useEffect(() => {
     setStepIndex(0);
@@ -127,16 +192,13 @@ function App() {
   const selectMode = (nextMode: AlgorithmMode) => setMode(nextMode);
 
   return (
-    <div className="app-shell">
-      <header className="topbar">
-        <div className="brand-block">
-          <div className="brand-mark">
-            <CircleDot size={18} />
-          </div>
-          <div>
-            <p className="eyebrow">Discrete Math</p>
-            <h1>Algorithms Lab</h1>
-          </div>
+    <main className="page-shell">
+      <aside className="control-panel" aria-label="Панель управления">
+        <div className="panel-heading">
+          <h1>
+            <span>Задание ДМ:</span>
+            <span>Algorithms Lab</span>
+          </h1>
         </div>
 
         <nav className="mode-switch" aria-label="Algorithm sections">
@@ -155,40 +217,8 @@ function App() {
             );
           })}
         </nav>
-      </header>
 
-      <main className="workbench">
-        <TaskRail
-          mode={mode}
-          weightedTask={weightedTask}
-          backtrackingTask={backtrackingTask}
-          bellmanTaskId={bellmanTaskId}
-          backtrackingTaskId={backtrackingTaskId}
-          onBellmanTask={setBellmanTaskId}
-          onBacktrackingTask={setBacktrackingTaskId}
-        />
-
-        <section className="stage-panel" aria-live="polite">
-          <div className="stage-heading">
-            <div>
-              <p className="eyebrow">{modeCopy[mode].eyebrow}</p>
-              <h2>{mode === "backtracking" ? backtrackingTask.title : weightedTask.title}</h2>
-              <p>{mode === "backtracking" ? backtrackingTask.question : weightedTask.question}</p>
-            </div>
-            <div className="step-counter">
-              <span>{String(Math.min(stepIndex + 1, steps.length)).padStart(2, "0")}</span>
-              <small>/ {String(steps.length).padStart(2, "0")}</small>
-            </div>
-          </div>
-
-          {mode === "backtracking" && backtrackingRun ? (
-            <BacktrackingStage run={backtrackingRun} step={currentStep as BacktrackingStep | undefined} index={stepIndex} />
-          ) : weightedRun ? (
-            <GraphStage run={weightedRun} step={currentStep as WeightedStep | undefined} />
-          ) : null}
-        </section>
-
-        <aside className="inspector">
+        <div className="sidebar-inner">
           <Playback
             playing={playing}
             progress={progress}
@@ -203,59 +233,70 @@ function App() {
             }}
           />
 
-          {mode === "backtracking" && backtrackingRun ? (
-            <BacktrackingInspector run={backtrackingRun} step={currentStep as BacktrackingStep | undefined} />
-          ) : weightedRun ? (
-            <WeightedInspector run={weightedRun} step={currentStep as WeightedStep | undefined} />
-          ) : null}
-        </aside>
-      </main>
-    </div>
+          <TaskPicker
+            mode={mode}
+            bellmanTaskId={bellmanTaskId}
+            backtrackingTaskId={backtrackingTaskId}
+            onBellmanTask={setBellmanTaskId}
+            onBacktrackingTask={setBacktrackingTaskId}
+          />
+
+          <div className="inspector">
+            {mode === "backtracking" && backtrackingRun ? (
+              <BacktrackingInspector run={backtrackingRun} step={currentStep as BacktrackingStep | undefined} index={stepIndex} />
+            ) : weightedRun ? (
+              <WeightedInspector run={weightedRun} step={currentStep as WeightedStep | undefined} />
+            ) : null}
+          </div>
+        </div>
+
+        <div className="sidebar-bottom">
+          <ConsolePanel lines={statusLines} />
+        </div>
+      </aside>
+
+      <section className="stage-panel" aria-live="polite">
+        {mode === "backtracking" && backtrackingRun ? (
+          <BacktrackingStage run={backtrackingRun} step={currentStep as BacktrackingStep | undefined} />
+        ) : weightedRun ? (
+          <GraphStage run={weightedRun} step={currentStep as WeightedStep | undefined} />
+        ) : null}
+      </section>
+    </main>
   );
 }
 
-type TaskRailProps = {
+type TaskPickerProps = {
   mode: AlgorithmMode;
-  weightedTask: WeightedTask;
-  backtrackingTask: BacktrackingTask;
   bellmanTaskId: string;
   backtrackingTaskId: string;
   onBellmanTask: (id: string) => void;
   onBacktrackingTask: (id: string) => void;
 };
 
-function TaskRail({
+function TaskPicker({
   mode,
-  weightedTask,
-  backtrackingTask,
   bellmanTaskId,
   backtrackingTaskId,
   onBellmanTask,
   onBacktrackingTask,
-}: TaskRailProps) {
+}: TaskPickerProps) {
   const tasks =
     mode === "bellman"
       ? bellmanTasks
       : mode === "backtracking"
         ? backtrackingTasks
-        : [dijkstraTask];
+        : [];
+
+  if (tasks.length === 0) {
+    return null;
+  }
 
   return (
-    <aside className="task-rail">
-      <p className="eyebrow">{modeCopy[mode].description}</p>
-      <h2>{mode === "backtracking" ? backtrackingTask.shortTitle : weightedTask.shortTitle}</h2>
-      <p className="rail-note">
-        {mode === "dijkstra"
-          ? "Python-ноутбук переписан на TypeScript с теми же данными."
-          : mode === "bellman"
-            ? "Все 9 задач из PDF заведены как отдельные сценарии."
-            : "Все 5 задач из PDF решаются через один backtracking-движок."}
-      </p>
-
-      <div className="task-list">
+    <section className="task-picker" aria-label="Выбор задачи">
+      <div className="task-chip-grid">
         {tasks.map((task) => {
           const active =
-            mode === "dijkstra" ||
             (mode === "bellman" && task.id === bellmanTaskId) ||
             (mode === "backtracking" && task.id === backtrackingTaskId);
 
@@ -263,8 +304,7 @@ function TaskRail({
             <button
               key={task.id}
               type="button"
-              disabled={mode === "dijkstra"}
-              className={active ? "task-button active" : "task-button"}
+              className={active ? "task-chip active" : "task-chip"}
               onClick={() => {
                 if (mode === "bellman") {
                   onBellmanTask(task.id);
@@ -275,12 +315,21 @@ function TaskRail({
               }}
             >
               <span>{task.shortTitle}</span>
-              <small>{task.subtitle}</small>
             </button>
           );
         })}
       </div>
-    </aside>
+    </section>
+  );
+}
+
+function ConsolePanel({ lines }: { lines: string[] }) {
+  return (
+    <section className="console-panel" aria-label="Консоль алгоритма">
+      {lines.slice(-6).map((line, index) => (
+        <p key={`${line}-${index}`}>{line}</p>
+      ))}
+    </section>
   );
 }
 
@@ -303,8 +352,19 @@ function Playback({
   onNext: () => void;
   onReset: () => void;
 }) {
+  const currentStep = String(Math.min(stepIndex + 1, totalSteps)).padStart(2, "0");
+  const stepTotal = String(totalSteps).padStart(2, "0");
+
   return (
     <section className="panel playback-panel">
+      <div className="playback-meta">
+        <div>
+          <p className="eyebrow">Step</p>
+          <strong>
+            {currentStep} / {stepTotal}
+          </strong>
+        </div>
+      </div>
       <div className="progress-track" aria-label="Step progress">
         <span style={{ width: `${progress}%` }} />
       </div>
@@ -347,10 +407,10 @@ function GraphStage({ run, step }: { run: WeightedRun; step?: WeightedStep }) {
 
   return (
     <div className="graph-wrap">
-      <svg className="graph-canvas" viewBox="0 0 100 100" role="img" aria-label={run.task.title}>
+      <svg className="graph-canvas" viewBox={getGraphViewBox(run.task.nodes)} role="img" aria-label={run.task.title}>
         <defs>
-          <marker id="arrow" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto">
-            <path d="M0,0 L7,3.5 L0,7 Z" className="arrow-head" />
+          <marker id="arrow" markerWidth="5.5" markerHeight="5.5" refX="5" refY="2.75" orient="auto">
+            <path d="M0,0 L5.5,2.75 L0,5.5 Z" className="arrow-head" />
           </marker>
         </defs>
         {run.task.edges.map((edge) => (
@@ -370,13 +430,19 @@ function GraphStage({ run, step }: { run: WeightedRun; step?: WeightedStep }) {
           const settled = step?.settledNodes?.includes(node.id);
           const inPath = (step?.path ?? run.path ?? []).includes(node.id);
           const inCycle = (step?.negativeCycle ?? run.negativeCycle ?? []).includes(node.id);
+          const NodeIcon = nodeIcons[node.id];
 
           return (
             <g key={node.id} className={["graph-node", active && "active", settled && "settled", inPath && "in-path", inCycle && "in-cycle"].filter(Boolean).join(" ")}>
-              <circle cx={node.x} cy={node.y} r="5.2" />
-              <text x={node.x} y={node.y + 1.2}>
-                {node.label}
-              </text>
+              <title>{node.label}</title>
+              <circle cx={node.x} cy={node.y} r="6.8" />
+              {NodeIcon ? (
+                <NodeIcon className="node-icon" x={node.x - 3.2} y={node.y - 3.2} width={6.4} height={6.4} strokeWidth={2.25} />
+              ) : (
+                <text x={node.x} y={node.y + 1.2}>
+                  {node.label}
+                </text>
+              )}
             </g>
           );
         })}
@@ -406,26 +472,34 @@ function GraphEdge({
   const dx = to.x - from.x;
   const dy = to.y - from.y;
   const length = Math.hypot(dx, dy) || 1;
-  const startX = from.x + (dx / length) * 6.4;
-  const startY = from.y + (dy / length) * 6.4;
-  const endX = to.x - (dx / length) * 7.5;
-  const endY = to.y - (dy / length) * 7.5;
+  const nodeRadius = 6.8;
+  const startX = from.x + (dx / length) * (nodeRadius + 1.4);
+  const startY = from.y + (dy / length) * (nodeRadius + 1.4);
+  const endX = to.x - (dx / length) * (nodeRadius + 2.8);
+  const endY = to.y - (dy / length) * (nodeRadius + 2.8);
   const labelX = (startX + endX) / 2;
   const labelY = (startY + endY) / 2;
-  const curveOffset = hasReverse ? 9 : 0;
+  const curveOffset = hasReverse ? 14 : 0;
   const normalX = (-dy / length) * curveOffset;
   const normalY = (dx / length) * curveOffset;
+  const labelOffset = hasReverse ? 0 : 4.6;
+  const labelSide = labelY < 50 ? -1 : 1;
+  const labelNormalX = (-dy / length) * labelOffset * labelSide;
+  const labelNormalY = (dx / length) * labelOffset * labelSide;
   const path = hasReverse
     ? `M ${startX} ${startY} Q ${labelX + normalX} ${labelY + normalY} ${endX} ${endY}`
     : `M ${startX} ${startY} L ${endX} ${endY}`;
-  const textX = labelX + normalX * 0.6;
-  const textY = labelY + normalY * 0.6;
+  const textX = labelX + normalX * 0.68 + labelNormalX;
+  const textY = labelY + normalY * 0.68 + labelNormalY;
+  const label = String(edge.weight);
+  const labelWidth = Math.max(6.6, label.length * 2.7 + 3.8);
 
   return (
     <g className={["graph-edge", active && "active", edge.weight < 0 && "negative", highlighted && "highlighted", cycle && "cycle"].filter(Boolean).join(" ")}>
       <path d={path} markerEnd="url(#arrow)" />
+      <rect className="edge-label-bg" x={textX - labelWidth / 2} y={textY - 3.2} width={labelWidth} height="6.4" rx="3.2" />
       <text x={textX} y={textY}>
-        {edge.weight}
+        {label}
       </text>
     </g>
   );
@@ -436,33 +510,39 @@ function WeightedInspector({ run, step }: { run: WeightedRun; step?: WeightedSte
   const parents = step?.parents ?? run.parents;
 
   return (
+    <section className="panel">
+      <p className="eyebrow">Distance table</p>
+      <div className="distance-table">
+        {run.task.nodes.map((node) => (
+          <div key={node.id} className={step?.changedNode === node.id ? "distance-row changed" : "distance-row"}>
+            <span>{node.label}</span>
+            <strong>{formatDistance(distances[node.id])}</strong>
+            <small>{parents[node.id] ?? "—"}</small>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function BacktrackingInspector({ run, step, index }: { run: BacktrackingRun; step?: BacktrackingStep; index: number }) {
+  const visibleSolutions = step?.solutions ?? [];
+
+  return (
     <>
-      <section className="panel">
-        <p className="eyebrow">Current step</p>
-        <h3>{step?.title ?? "Старт"}</h3>
-        <p className="detail-text">{step?.detail}</p>
+      <section className="panel trail-panel">
+        <p className="eyebrow">Decision tree</p>
+        <DecisionTrail steps={run.steps} activeIndex={index} />
       </section>
 
       <section className="panel">
-        <p className="eyebrow">Distance table</p>
-        <div className="distance-table">
-          {run.task.nodes.map((node) => (
-            <div key={node.id} className={step?.changedNode === node.id ? "distance-row changed" : "distance-row"}>
-              <span>{node.label}</span>
-              <strong>{formatDistance(distances[node.id])}</strong>
-              <small>{parents[node.id] ?? "—"}</small>
-            </div>
+        <p className="eyebrow">Solutions</p>
+        <p className="result-summary">{run.summary}</p>
+        <div className="solution-cloud">
+          {(visibleSolutions.length > 0 ? visibleSolutions : ["пока нет найденных решений"]).map((solution) => (
+            <span key={solution}>{solution}</span>
           ))}
         </div>
-      </section>
-
-      <section className="panel">
-        <p className="eyebrow">Expected output</p>
-        <ul className="clean-list">
-          {run.task.expected.map((line) => (
-            <li key={line}>{line}</li>
-          ))}
-        </ul>
       </section>
     </>
   );
@@ -471,18 +551,15 @@ function WeightedInspector({ run, step }: { run: WeightedRun; step?: WeightedSte
 function BacktrackingStage({
   run,
   step,
-  index,
 }: {
   run: BacktrackingRun;
   step?: BacktrackingStep;
-  index: number;
 }) {
   const grid = "grid" in run.task.payload ? run.task.payload.grid : null;
 
   return (
     <div className="backtracking-stage">
       {grid ? <MazeView grid={grid} step={step} /> : <StateView task={run.task} step={step} />}
-      <DecisionTrail steps={run.steps} activeIndex={index} />
     </div>
   );
 }
@@ -548,46 +625,13 @@ function DecisionTrail({ steps, activeIndex }: { steps: BacktrackingStep[]; acti
         <div
           key={step.id}
           className={step.id === steps[activeIndex]?.id ? `decision-node active ${step.action}` : `decision-node ${step.action}`}
-          style={{ marginLeft: `${Math.min(step.depth, 8) * 18}px` }}
+          style={{ marginLeft: `${Math.min(step.depth, 8) * 13}px` }}
         >
           <span>{step.title}</span>
           <small>{step.state || "∅"}</small>
         </div>
       ))}
     </div>
-  );
-}
-
-function BacktrackingInspector({ run, step }: { run: BacktrackingRun; step?: BacktrackingStep }) {
-  const visibleSolutions = step?.solutions ?? [];
-
-  return (
-    <>
-      <section className="panel">
-        <p className="eyebrow">Current step</p>
-        <h3>{step?.title ?? "Старт"}</h3>
-        <p className="detail-text">{step?.detail}</p>
-      </section>
-
-      <section className="panel">
-        <p className="eyebrow">Solutions</p>
-        <p className="result-summary">{run.summary}</p>
-        <div className="solution-cloud">
-          {(visibleSolutions.length > 0 ? visibleSolutions : ["пока нет найденных решений"]).map((solution) => (
-            <span key={solution}>{solution}</span>
-          ))}
-        </div>
-      </section>
-
-      <section className="panel">
-        <p className="eyebrow">Expected output</p>
-        <ul className="clean-list">
-          {run.task.expected.map((line) => (
-            <li key={line}>{line}</li>
-          ))}
-        </ul>
-      </section>
-    </>
   );
 }
 
